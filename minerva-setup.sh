@@ -103,13 +103,21 @@ fi
 
 # ---- dependencies -----------------------------------------------------------
 echo; bold "Installing dependencies"
-if command -v sshpass >/dev/null 2>&1; then ok "sshpass present"
+HAVE_SSHPASS=0
+if command -v sshpass >/dev/null 2>&1; then HAVE_SSHPASS=1; ok "sshpass present"
 else
   info "installing sshpass…"
-  brew install hudochenkov/sshpass/sshpass 2>/dev/null \
-    || brew install esolitos/ipa/sshpass 2>/dev/null \
-    || die "Could not install sshpass via known taps. Install it manually, then re-run."
-  ok "sshpass installed"
+  # sshpass is now in homebrew-core; older Homebrew needs a tap. Try core first.
+  if brew install sshpass 2>/dev/null \
+     || brew install hudochenkov/sshpass/sshpass 2>/dev/null \
+     || brew install esolitos/ipa/sshpass 2>/dev/null; then
+    HAVE_SSHPASS=1; ok "sshpass installed"
+  else
+    warn "Could not install sshpass automatically — continuing without it."
+    warn "Logins will prompt for your password (you still type it only once per"
+    warn "${MPERSIST}h ControlMaster window). To enable auto-fill later:"
+    warn "  brew install sshpass   # then re-run ./minerva-setup.sh"
+  fi
 fi
 if command -v sshfs >/dev/null 2>&1 || [[ -x "$BREW_PREFIX/bin/sshfs" ]]; then ok "FUSE-T sshfs present"
 else
@@ -163,16 +171,28 @@ write_block "$HOME/.ssh/config" "$SSH_BLOCK"; chmod 600 "$HOME/.ssh/config"
 ok "updated ~/.ssh/config (User $MUSER, ControlPersist ${MPERSIST}h)"
 
 # ---- zshrc ------------------------------------------------------------------
-ZSHRC_BLOCK="# Minerva (Sinai HPC) — managed by minerva-setup.sh. Settings: ~/.config/minerva/minerva.conf
-[ -r \"\$HOME/.config/minerva/minerva.conf\" ] && source \"\$HOME/.config/minerva/minerva.conf\"
-: \"\${MINERVA_PWFILE:=\$HOME/.minerva_password}\"
-
-# Log in (password auto-fed; you still approve the MFA push on your phone).
+# Login aliases: with sshpass the password is auto-fed; without it you just type
+# it (once per ControlMaster window). MFA push is approved on your phone either way.
+if (( HAVE_SSHPASS )); then
+  LOGIN_ALIASES="# Log in (password auto-fed via sshpass; approve the MFA push on your phone).
 alias minerva='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva'
 alias minerva11='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva11'
 alias minerva12='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva12'
 alias minerva13='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva13'
-alias minerva14='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva14'
+alias minerva14='sshpass -f \"\$MINERVA_PWFILE\" ssh -Y minerva14'"
+else
+  LOGIN_ALIASES="# Log in (type your password when asked — once per ControlMaster window; then MFA).
+alias minerva='ssh -Y minerva'
+alias minerva11='ssh -Y minerva11'
+alias minerva12='ssh -Y minerva12'
+alias minerva13='ssh -Y minerva13'
+alias minerva14='ssh -Y minerva14'"
+fi
+ZSHRC_BLOCK="# Minerva (Sinai HPC) — managed by minerva-setup.sh. Settings: ~/.config/minerva/minerva.conf
+[ -r \"\$HOME/.config/minerva/minerva.conf\" ] && source \"\$HOME/.config/minerva/minerva.conf\"
+: \"\${MINERVA_PWFILE:=\$HOME/.minerva_password}\"
+
+$LOGIN_ALIASES
 
 # Mount management (on-demand — run AFTER you've logged into a node).
 alias minerva-mount=\"\$HOME/bin/minerva-mount.sh\"

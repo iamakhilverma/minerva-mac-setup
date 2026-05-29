@@ -87,6 +87,9 @@ rm -rf ~/.config/minerva
 
 ## Troubleshoot
 
+- *"Could not install sshpass"* → it's optional. The installer now falls back to
+  plain `ssh` logins (you type your password once per session). To get auto-fill,
+  run `brew install sshpass` (it's in homebrew-core now) and re-run the installer.
 - `minerva-mount` says *"no live Minerva SSH master"* → log into a node first
   (`minerva13`), then `minerva-mount`. Mounting is on-demand by design.
 - `~/minerva` looks stuck → `minerva-status` (safe, never hangs). If `PHANTOM`,
